@@ -31,6 +31,10 @@ const broadcastProgress = (videoId) => {
   });
 };
 
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
 app.get('/api/progress', (req, res) => {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
