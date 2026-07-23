@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: fetchify
+    runtime: node
+    buildCommand: pip install yt-dlp && npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+    autoDeploy: true

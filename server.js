@@ -261,7 +261,12 @@ app.get('/api/download-file', (req, res) => {
   const { id } = req.query;
   const download = activeDownloads[id];
   if (download && download.status === 'completed' && download.filePath && fs.existsSync(download.filePath)) {
-    res.download(download.filePath, path.basename(download.filePath));
+    res.download(download.filePath, path.basename(download.filePath), (err) => {
+      if (!err) {
+        try { fs.unlinkSync(download.filePath); } catch (_) {}
+        delete activeDownloads[id];
+      }
+    });
   } else {
     res.status(404).json({ error: 'File not found or download not completed' });
   }
