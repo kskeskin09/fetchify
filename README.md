@@ -1,61 +1,103 @@
 # Fetchify
 
-YouTube videolarını MP3 veya MP4 olarak indirmenizi sağlayan hızlı ve modern bir web uygulaması.
+**🌐 Live Demo → [fetchify-y32i.onrender.com](https://fetchify-y32i.onrender.com)**
 
-👉 **[Hemen Tarayıcıda Kullan (Canlı Demo)](https://fetchify-y32i.onrender.com)** — Herhangi bir kurulum yapmadan direkt kullanabilirsiniz.
-
----
-
-## ⚡ Özellikler
-
-- 🔍 **Doğrudan Arama:** YouTube URL'si kopyalamanıza gerek kalmadan uygulama içinden arama yapın.
-- 🎵 **MP3 & MP4 Desteği:** İster yüksek kalitede ses (320kbps'e kadar) ister video (1080p'ye kadar) indirin.
-- 📊 **Canlı İlerleme:** İndirme durumunu ve yüzdesini anlık olarak takip edin.
-- 📑 **Toplu İndirme Kuyruğu:** Birden fazla içeriği listeye ekleyip sırayla veya tek tıkla indirin.
+A local-first web app for downloading YouTube videos as **MP3** or **MP4**. Built with React + Vite on the frontend and Express on the backend.
 
 ---
 
-## 💻 Kendi Bilgisayarında Çalıştırmak İsteyenler İçin (Local Setup)
+## Features
 
-Uygulamayı kendi yerel sunucunuzda çalıştırmak veya geliştirmek isterseniz aşağıdaki adımları izleyebilirsiniz.
-
-### Ön Gereksinimler
-
-1. **Node.js (v18+)** — [nodejs.org](https://nodejs.org)
-2. **yt-dlp** — Bilgisayarınızda kurulu olmalıdır:
-   - **Windows:** `winget install yt-dlp`
-   - **macOS:** `brew install yt-dlp`
-   - **Linux:** `pip install yt-dlp`
-
-### Kurulum Adımları
-
-1. Repoyu klonlayın:
-   ```bash
-   git clone https://github.com/kskeskin09/fetchify.git
-   cd fetchify
-   ```
-
-2. Bağımlılıkları yükleyin:
-   ```bash
-   npm install
-   ```
-
-3. Geliştirici modunda çalıştırın:
-   ```bash
-   npm run dev
-   ```
-   Tarayıcınızda `http://localhost:5173` adresine giderek kullanabilirsiniz.
+- Search YouTube directly from the app — no URL copying needed
+- Download as MP3 (up to 320 Kbps) or MP4 (up to 1080p+)
+- Real-time download progress via Server-Sent Events
+- Batch queue — add multiple tracks and download them all at once
+- Per-track format and quality selection
+- Saves files to a local `Fetchify` subfolder in your Downloads
 
 ---
 
-## 🛠️ Teknolojiler
+## Prerequisites
 
-- **Frontend:** React, Vite, CSS (Glassmorphism UI)
+**Node.js v18+** — [nodejs.org](https://nodejs.org)
+
+**yt-dlp** — must be available in your system PATH.
+
+```bash
+# Windows
+winget install yt-dlp
+
+# macOS
+brew install yt-dlp
+
+# Linux
+pip install yt-dlp
+```
+
+> `ffmpeg` is bundled via `ffmpeg-static` — no separate install required.
+
+---
+
+## Getting Started
+
+```bash
+git clone https://github.com/YOUR_USERNAME/fetchify.git
+cd fetchify
+npm install
+npm run dev
+```
+
+Open [http://localhost:5173](http://localhost:5173) in your browser.
+
+---
+
+## Production
+
+```bash
+npm run build
+npm start
+```
+
+Serves the built frontend through the Express server on port `5000` (or `$PORT`).
+
+---
+
+## Announcement Banner
+
+Create an `info.txt` file in the project root with any text to display a banner inside the app. Leave it empty or delete it to hide the banner. See `info.txt.example` for reference.
+
+---
+
+## Project Structure
+
+```
+├── src/           # React frontend
+│   ├── App.jsx
+│   ├── App.css
+│   └── index.css
+├── server.js      # Express API server
+├── dev.js         # Development runner (Vite + Express)
+├── vite.config.js
+└── package.json
+```
+
+---
+
+## Tech Stack
+
+- **Frontend:** React 19, Vite 8, Vanilla CSS
 - **Backend:** Node.js, Express
-- **İndirme & Dönüştürme:** yt-dlp, ffmpeg
+- **Downloader:** yt-dlp
+- **Audio/Video:** ffmpeg (via ffmpeg-static)
 
 ---
 
-## 📄 Lisans
+## Disclaimer
 
-[MIT License](LICENSE)
+For personal use only. Downloading copyrighted content may violate YouTube's Terms of Service. Use responsibly.
+
+---
+
+## License
+
+MIT
