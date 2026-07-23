@@ -1,0 +1,9 @@
+# info.txt — Announcement Banner
+#
+# Edit the file "info.txt" (in the project root) to display a banner message in the app.
+# Leave it empty for no banner.
+#
+# Example:
+#   This is a beta version. Some features may not work as expected.
+#
+# Note: info.txt is gitignored (personal/local config). This file is just a reference.

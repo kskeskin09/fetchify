@@ -1,0 +1,305 @@
+import express from 'express';
+import cors from 'cors';
+import { spawn } from 'child_process';
+import os from 'os';
+import path from 'path';
+import fs from 'fs';
+import ffmpeg from 'ffmpeg-static';
+
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+app.use(cors());
+app.use(express.json());
+
+// In-memory store for active downloads and progress
+const activeDownloads = {};
+let sseClients = [];
+
+// Helper to broadcast progress updates to all SSE clients
+const broadcastProgress = (videoId) => {
+  const update = activeDownloads[videoId];
+  if (!update) return;
+
+  const data = JSON.stringify(update);
+  sseClients.forEach((client) => {
+    client.write(`data: ${data}\n\n`);
+  });
+};
+
+// SSE endpoint for progress tracking
+app.get('/api/progress', (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+  });
+
+  // Send current state of all active downloads immediately upon connecting
+  res.write(`data: ${JSON.stringify(Object.values(activeDownloads))}\n\n`);
+
+  sseClients.push(res);
+
+  req.on('close', () => {
+    sseClients = sseClients.filter((client) => client !== res);
+  });
+});
+
+// Search API Endpoint using yt-dlp
+app.get('/api/search', (req, res) => {
+  const query = req.query.q;
+  const musicOnly = req.query.musicOnly === 'true';
+
+  if (!query) {
+    return res.status(400).json({ error: 'Search query is required' });
+  }
+
+  const searchQuery = musicOnly ? `${query} music` : query;
+  console.log(`Searching YouTube for: "${searchQuery}"`);
+
+  // Spawn yt-dlp search
+  // ytsearch12: returns up to 12 results
+  const ytDlp = spawn('yt-dlp', [
+    `ytsearch12:${searchQuery}`,
+    '--flat-playlist',
+    '--dump-single-json',
+    '--no-playlist',
+    '--no-warnings',
+    '--no-update'
+  ]);
+
+  let stdoutData = '';
+  let stderrData = '';
+
+  ytDlp.stdout.on('data', (data) => {
+    stdoutData += data.toString();
+  });
+
+  ytDlp.stderr.on('data', (data) => {
+    stderrData += data.toString();
+  });
+
+  ytDlp.on('close', (code) => {
+    if (code !== 0) {
+      console.error(`yt-dlp search failed with code ${code}. Error: ${stderrData}`);
+      return res.status(500).json({ error: 'Search failed', details: stderrData });
+    }
+
+    try {
+      const parsed = JSON.parse(stdoutData);
+      const entries = (parsed.entries || []).map((entry) => {
+        // Find best quality thumbnail
+        let thumbnailUrl = 'https://images.unsplash.com/photo-1614680376593-902f74fa0d41?w=360&auto=format&fit=crop&q=60'; // fallback
+        if (entry.thumbnails && entry.thumbnails.length > 0) {
+          // Sort thumbnails by width descending, get the first one
+          const sorted = [...entry.thumbnails].sort((a, b) => (b.width || 0) - (a.width || 0));
+          thumbnailUrl = sorted[0].url;
+        }
+
+        return {
+          id: entry.id,
+          title: entry.title,
+          artist: entry.uploader || entry.channel || 'Unknown Artist',
+          duration: entry.duration || 0,
+          thumbnail: thumbnailUrl,
+          url: entry.url || `https://www.youtube.com/watch?v=${entry.id}`
+        };
+      });
+
+      res.json({ results: entries });
+    } catch (err) {
+      console.error('Failed to parse search results:', err);
+      res.status(500).json({ error: 'Failed to parse search response', raw: stdoutData.substring(0, 500) });
+    }
+  });
+});
+
+// Editable announcement text endpoint
+app.get('/api/announcement', (req, res) => {
+  const filePath = path.join(process.cwd(), 'info.txt');
+  if (fs.existsSync(filePath)) {
+    try {
+      const content = fs.readFileSync(filePath, 'utf-8').trim();
+      return res.json({ message: content });
+    } catch (e) {
+      return res.json({ message: "" });
+    }
+  }
+  res.json({ message: "" });
+});
+
+// Download API Endpoint
+app.post('/api/download', (req, res) => {
+  const { id, title, format = 'mp3', quality = 'best', downloadPath, createSubfolder = true } = req.body;
+
+  if (!id || !title) {
+    return res.status(400).json({ error: 'Video id and title are required' });
+  }
+
+  // If already downloading or completed, skip or restart
+  if (activeDownloads[id] && (activeDownloads[id].status === 'downloading' || activeDownloads[id].status === 'transcoding')) {
+    return res.json({ message: 'Download is already in progress', status: activeDownloads[id].status });
+  }
+
+  const host = req.headers.host || '';
+  const isLocal = host.includes('localhost') || host.includes('127.0.0.1') || host.includes('192.168.') || host.includes('::1');
+
+  let targetDir;
+  if (isLocal) {
+    targetDir = downloadPath ? path.resolve(downloadPath) : path.join(os.homedir(), 'Downloads');
+    if (createSubfolder) {
+      targetDir = path.join(targetDir, 'BeatStream');
+    }
+  } else {
+    targetDir = path.join(__dirname, 'temp_downloads');
+  }
+
+  if (!fs.existsSync(targetDir)) {
+    fs.mkdirSync(targetDir, { recursive: true });
+  }
+
+  console.log(`Starting download for "${title}" (${id}) as ${format.toUpperCase()} (${quality}). Will save to ${targetDir}`);
+
+  // Initialize status
+  activeDownloads[id] = {
+    id,
+    title,
+    format,
+    quality,
+    progress: 0,
+    status: 'downloading',
+    error: null,
+  };
+  broadcastProgress(id);
+
+  // Configure yt-dlp arguments dynamically based on format & quality
+  let args = [];
+  
+  if (format === 'mp3') {
+    let audioQuality = '320K';
+    if (quality === 'high') audioQuality = '256K';
+    else if (quality === 'medium') audioQuality = '192K';
+    else if (quality === 'low') audioQuality = '128K';
+
+    args = [
+      '-x',
+      '--audio-format', 'mp3',
+      '--audio-quality', audioQuality,
+      '--ffmpeg-location', ffmpeg,
+      '--no-update',
+      '--no-playlist',
+      '-o', path.join(targetDir, '%(title)s.%(ext)s'),
+      `https://www.youtube.com/watch?v=${id}`
+    ];
+  } else {
+    // MP4 Video download
+    const formatSort = quality === 'best' 
+      ? 'res,ext:mp4:m4a' 
+      : quality === 'high' 
+        ? 'res:1080,ext:mp4:m4a' 
+        : quality === 'medium'
+          ? 'res:720,ext:mp4:m4a'
+          : quality === 'low'
+            ? 'res:480,ext:mp4:m4a'
+            : quality === '360p'
+              ? 'res:360,ext:mp4:m4a'
+              : quality === '240p'
+                ? 'res:240,ext:mp4:m4a'
+                : 'res:144,ext:mp4:m4a';
+
+    args = [
+      '-f', 'bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/best',
+      '-S', formatSort,
+      '--ffmpeg-location', ffmpeg,
+      '--no-update',
+      '--no-playlist',
+      '-o', path.join(targetDir, '%(title)s.%(ext)s'),
+      `https://www.youtube.com/watch?v=${id}`
+    ];
+  }
+
+  const ytDlp = spawn('yt-dlp', args);
+
+  ytDlp.stdout.on('data', (data) => {
+    const line = data.toString();
+
+    // Parse download percentage: e.g. "[download]  10.5% of..."
+    const downloadMatch = line.match(/\[download\]\s+(\d+\.?\d*)%/);
+    if (downloadMatch) {
+      const progress = parseFloat(downloadMatch[1]);
+      activeDownloads[id].progress = progress;
+      if (progress === 100) {
+        activeDownloads[id].status = 'transcoding';
+      } else {
+        activeDownloads[id].status = 'downloading';
+      }
+      broadcastProgress(id);
+    }
+
+    // Parse transcoding: e.g. "[ExtractAudio]" or "[ffmpeg]"
+    if (line.includes('[ExtractAudio]') || line.includes('[ffmpeg]')) {
+      activeDownloads[id].status = 'transcoding';
+      broadcastProgress(id);
+    }
+  });
+
+  ytDlp.stderr.on('data', (data) => {
+    console.error(`[yt-dlp stderr ${id}]:`, data.toString());
+  });
+
+  ytDlp.on('close', (code) => {
+    if (code === 0) {
+      console.log(`Successfully completed download and conversion for: ${title}`);
+      activeDownloads[id].status = 'completed';
+      activeDownloads[id].progress = 100;
+      
+      try {
+        if (fs.existsSync(targetDir)) {
+          const files = fs.readdirSync(targetDir);
+          const cleanTitle = title.replace(/[\\/:*?"<>|]/g, "_").substring(0, 15);
+          const matchedFile = files.find(f => 
+            (f.toLowerCase().includes(cleanTitle.toLowerCase()) || 
+             f.toLowerCase().includes(title.toLowerCase().substring(0, 10))) && 
+            f.endsWith(format)
+          );
+          if (matchedFile) {
+            activeDownloads[id].filePath = path.join(targetDir, matchedFile);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to locate downloaded file:', err);
+      }
+    } else {
+      console.error(`yt-dlp download failed with code ${code} for video ${id}`);
+      activeDownloads[id].status = 'failed';
+      activeDownloads[id].error = `Failed with exit code ${code}`;
+    }
+    broadcastProgress(id);
+  });
+
+  res.json({ message: 'Download initiated', id });
+});
+
+// Download attachment file endpoint (for public web mode)
+app.get('/api/download-file', (req, res) => {
+  const { id } = req.query;
+  const download = activeDownloads[id];
+  if (download && download.status === 'completed' && download.filePath && fs.existsSync(download.filePath)) {
+    res.download(download.filePath, path.basename(download.filePath));
+  } else {
+    res.status(404).json({ error: 'File not found or download not completed' });
+  }
+});
+
+// Serve frontend static assets in production
+const distPath = path.join(process.cwd(), 'dist');
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
+
+app.listen(PORT, () => {
+  console.log(`Backend server running at http://localhost:${PORT}`);
+});
