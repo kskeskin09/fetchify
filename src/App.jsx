@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-// Format duration helper (seconds -> mm:ss or h:mm:ss)
 const formatDuration = (seconds) => {
   if (!seconds) return '0:00';
   const h = Math.floor(seconds / 3600);
@@ -12,7 +11,6 @@ const formatDuration = (seconds) => {
   return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
-// Marquee title: only scrolls when text is wider than container
 function MarqueeTitle({ text, className = 'card-title-container', scrollClass = 'card-title-scroll' }) {
   const containerRef = React.useRef(null);
   const textRef = React.useRef(null);
@@ -24,7 +22,6 @@ function MarqueeTitle({ text, className = 'card-title-container', scrollClass = 
     if (!container || !textEl) return;
 
     const check = () => {
-      // Compare the text's natural width against the container's clipped width
       setOverflows(textEl.scrollWidth > container.clientWidth);
     };
 
@@ -56,16 +53,16 @@ export default function App() {
   const [searchResults, setSearchResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [queue, setQueue] = useState([]);
-  const [viewMode, setViewMode] = useState('list'); // 'list' or 'grid'
+  const [viewMode, setViewMode] = useState('list');
   const [trackOptions, setTrackOptions] = useState({});
   const [activeDropdown, setActiveDropdown] = useState(null);
   const [createSubfolder, setCreateSubfolder] = useState(true);
   const [defaultAudioQuality, setDefaultAudioQuality] = useState('best');
   const [defaultVideoQuality, setDefaultVideoQuality] = useState('best');
+  const [downloadPath, setDownloadPath] = useState('');
   const [announcement, setAnnouncement] = useState('');
   const triggeredDownloads = useRef(new Set());
 
-  // Fetch announcement on mount
   useEffect(() => {
     fetch('/api/announcement')
       .then((res) => res.json())
@@ -73,15 +70,13 @@ export default function App() {
       .catch(() => {});
   }, []);
 
-  // SSE connection for real-time progress updates
   useEffect(() => {
     const eventSource = new EventSource('/api/progress');
 
     eventSource.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        
-        // Trigger browser download on completion
+
         const triggerBrowserDownload = (item) => {
           if (item.status === 'completed' && !triggeredDownloads.current.has(item.id)) {
             triggeredDownloads.current.add(item.id);
@@ -95,7 +90,6 @@ export default function App() {
         };
 
         if (Array.isArray(data)) {
-          // Sync entire queue on connect
           setQueue((prev) => {
             const updated = [...prev];
             data.forEach((backendItem) => {
@@ -110,7 +104,6 @@ export default function App() {
             return updated;
           });
         } else {
-          // Single item update
           setQueue((prev) => {
             const idx = prev.findIndex((q) => q.id === data.id);
             if (idx > -1) {
@@ -128,8 +121,7 @@ export default function App() {
       }
     };
 
-    eventSource.onerror = (err) => {
-      console.error('SSE connection error:', err);
+    eventSource.onerror = () => {
       eventSource.close();
     };
 
@@ -138,7 +130,6 @@ export default function App() {
     };
   }, []);
 
-  // Debounced search logic
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
@@ -151,11 +142,7 @@ export default function App() {
       try {
         const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&musicOnly=${musicOnly}`);
         const data = await response.json();
-        if (data.results) {
-          setSearchResults(data.results);
-        } else {
-          setSearchResults([]);
-        }
+        setSearchResults(data.results || []);
       } catch (error) {
         console.error('Search error:', error);
       } finally {
@@ -166,7 +153,6 @@ export default function App() {
     return () => clearTimeout(delayDebounceFn);
   }, [searchQuery, musicOnly]);
 
-  // Handle click outside to close dropdowns
   useEffect(() => {
     const handleOutsideClick = (e) => {
       if (!e.target.closest('.options-dropdown-container') && !e.target.closest('.download-split-btn')) {
@@ -177,9 +163,6 @@ export default function App() {
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
-
-
-  // Helper to get human-readable quality labels
   const getQualityLabel = (format, quality) => {
     if (format === 'mp3') {
       if (quality === 'best') return '320K';
@@ -194,13 +177,10 @@ export default function App() {
     }
   };
 
-  // Handle immediate download
   const handleDownload = async (track, options = { format: 'mp3', quality: 'best' }) => {
-    // Add to queue in frontend state first (or update state if already exists)
     setQueue((prev) => {
       const exists = prev.some((item) => item.id === track.id);
       if (exists) {
-        // Update its options and change status back to downloading
         return prev.map((item) =>
           item.id === track.id
             ? { ...item, status: 'downloading', progress: 0, format: options.format, quality: options.quality }
@@ -238,7 +218,6 @@ export default function App() {
       });
     } catch (error) {
       console.error('Download initiation error:', error);
-      // Update status to failed
       setQueue((prev) =>
         prev.map((item) =>
           item.id === track.id
@@ -249,7 +228,6 @@ export default function App() {
     }
   };
 
-  // Add item to queue (without starting download immediately)
   const addToQueue = (track, options = { format: 'mp3', quality: 'best' }) => {
     setQueue((prev) => {
       const exists = prev.some((item) => item.id === track.id);
@@ -271,7 +249,6 @@ export default function App() {
     });
   };
 
-  // Start downloading a single queued item
   const startQueuedDownload = async (item) => {
     setQueue((prev) =>
       prev.map((q) => (q.id === item.id ? { ...q, status: 'downloading', progress: 0 } : q))
@@ -286,6 +263,7 @@ export default function App() {
           title: item.title,
           format: item.format || 'mp3',
           quality: item.quality || 'best',
+          downloadPath,
           createSubfolder,
         }),
       });
@@ -300,14 +278,12 @@ export default function App() {
     }
   };
 
-  // Update options of a queued item in the list
   const updateQueueItemOptions = (id, newOptions) => {
     setQueue((prev) =>
       prev.map((item) => (item.id === id ? { ...item, ...newOptions } : item))
     );
   };
 
-  // Download all queued items
   const downloadAllQueued = () => {
     const queuedItems = queue.filter((item) => item.status === 'queued');
     queuedItems.forEach((item) => {
@@ -315,24 +291,20 @@ export default function App() {
     });
   };
 
-  // Remove from queue
   const removeFromQueue = (id) => {
     setQueue((prev) => prev.filter((item) => item.id !== id));
   };
 
-  // Clear completed downloads from queue
   const clearCompleted = () => {
     setQueue((prev) => prev.filter((item) => item.status !== 'completed' && item.status !== 'failed'));
   };
 
-  // Clear all items from queue
   const clearAllQueue = () => {
     setQueue([]);
   };
 
   return (
     <div className="app-container" style={{ position: 'relative' }}>
-      {/* Announcement Badge (Sol Üst) */}
       {announcement && (
         <div className="announcement-badge">
           <span className="announcement-pulse"></span>
@@ -340,18 +312,16 @@ export default function App() {
         </div>
       )}
 
-      {/* Header */}
       <header className="app-header">
         <div className="app-title-container">
           <svg className="logo-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path>
           </svg>
-          <h1>BeatStream</h1>
+          <h1>Fetchify</h1>
         </div>
-        <p>Search and download any quality YouTube tracks directly to your local folder as MP3 or MP4</p>
+        <p>Search and download YouTube tracks directly to your device as MP3 or MP4</p>
       </header>
 
-      {/* Presets Panel (Far Left column) */}
       <aside className="presets-container">
         <div className="presets-panel glass-panel">
           <div className="presets-header" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', paddingBottom: '0.5rem' }}>
@@ -396,7 +366,6 @@ export default function App() {
         </div>
       </aside>
 
-      {/* Search Section */}
       <section className="search-section glass-panel">
         <div className="search-wrapper">
           <div className="search-input-container">
@@ -427,9 +396,9 @@ export default function App() {
                 onChange={(e) => setMusicOnly(e.target.checked)}
               />
               <div className="checkbox-custom"></div>
-              <span>Music Only (Recommended)</span>
+              <span>Music Only</span>
             </label>
-            
+
             <div className="layout-toggle-container">
               <button
                 className={`btn btn-secondary btn-icon-only ${viewMode === 'list' ? 'active' : ''}`}
@@ -460,13 +429,12 @@ export default function App() {
                 onChange={(e) => setCreateSubfolder(e.target.checked)}
               />
               <div className="checkbox-custom"></div>
-              <span style={{ fontSize: '0.8rem' }}>Create 'BeatStream' subfolder in Downloads</span>
+              <span style={{ fontSize: '0.8rem' }}>Save to 'Fetchify' subfolder in Downloads</span>
             </label>
           </div>
-      </div>
-    </section>
+        </div>
+      </section>
 
-      {/* Left Column: Search Results */}
       <main className="results-container">
         {isLoading ? (
           <div className="loading-container glass-panel">
@@ -479,20 +447,20 @@ export default function App() {
               const isInQueue = queue.some((item) => item.id === track.id);
               const queueItem = queue.find((item) => item.id === track.id);
               const isDownloading = queueItem && (queueItem.status === 'downloading' || queueItem.status === 'transcoding');
-              
+
               const trackOptionsRecord = trackOptions[track.id];
               const trackFormat = trackOptionsRecord?.format || 'mp3';
               const options = trackOptionsRecord || {
                 format: trackFormat,
-                quality: trackFormat === 'mp3' ? defaultAudioQuality : defaultVideoQuality
+                quality: trackFormat === 'mp3' ? defaultAudioQuality : defaultVideoQuality,
               };
               const isDropdownOpen = activeDropdown === track.id;
 
               const handleOptionChange = (key, value) => {
                 setTrackOptions((prev) => {
-                  const prevOpt = prev[track.id] || { 
-                    format: 'mp3', 
-                    quality: defaultAudioQuality 
+                  const prevOpt = prev[track.id] || {
+                    format: 'mp3',
+                    quality: defaultAudioQuality,
                   };
                   const newOpt = { ...prevOpt, [key]: value };
                   if (key === 'format') {
@@ -518,7 +486,7 @@ export default function App() {
                         {track.artist}
                       </div>
                     </div>
-                    
+
                     <div className="card-actions">
                       {isInQueue ? (
                         <button
@@ -550,7 +518,7 @@ export default function App() {
                             </svg>
                             <span>Add {options.format.toUpperCase()}</span>
                           </button>
-                          
+
                           <div className="options-dropdown-container">
                             <button
                               className="btn btn-primary"
@@ -563,7 +531,7 @@ export default function App() {
                                 borderLeft: '1px solid rgba(255, 255, 255, 0.25)',
                                 boxShadow: 'none',
                               }}
-                              title="Format & Quality Settings"
+                              title="Format & Quality"
                             >
                               <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7"></path>
@@ -611,7 +579,7 @@ export default function App() {
                                     )}
                                   </select>
                                 </div>
-                                
+
                                 <button
                                   className="btn btn-secondary btn-icon-only"
                                   style={{ width: '100%', height: '28px', marginTop: '0.25rem', fontSize: '0.75rem', padding: 0 }}
@@ -636,12 +604,11 @@ export default function App() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
             </svg>
             <h3>Start Searching</h3>
-            <p style={{ fontSize: '0.9rem', marginTop: '0.5rem' }}>Type in the search bar above to fetch songs from YouTube.</p>
+            <p style={{ fontSize: '0.9rem', marginTop: '0.5rem' }}>Type in the search bar above to find songs on YouTube.</p>
           </div>
         )}
       </main>
 
-      {/* Right Column: Download Queue */}
       <aside className="queue-container">
         <div className="queue-panel glass-panel">
           <div className="queue-header">
@@ -660,7 +627,7 @@ export default function App() {
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
-                <p>No downloads active or queued.<br />Add songs to the queue to start downloading.</p>
+                <p>No downloads queued.<br />Add songs to start downloading.</p>
               </div>
             ) : (
               queue.map((item) => {
@@ -683,7 +650,7 @@ export default function App() {
                         </div>
                       </div>
                       <div className="queue-item-artist">{item.artist}</div>
-                      
+
                       {isQueued ? (
                         <div className="queue-item-options">
                           <select
@@ -722,7 +689,7 @@ export default function App() {
                           <span className="meta-badge">{getQualityLabel(item.format || 'mp3', item.quality || 'best')}</span>
                         </div>
                       )}
-                      
+
                       {isFailed && <div style={{ fontSize: '0.75rem', color: '#e74c3c', marginTop: '0.2rem' }}>Error: {item.error}</div>}
                     </div>
 
@@ -742,7 +709,7 @@ export default function App() {
                       )}
 
                       {(isCompleted || isFailed) && (
-                        <button className="btn btn-secondary btn-icon-only" style={{ width: '28px', height: '28px' }} onClick={() => removeFromQueue(item.id)} title="Remove from list">
+                        <button className="btn btn-secondary btn-icon-only" style={{ width: '28px', height: '28px' }} onClick={() => removeFromQueue(item.id)} title="Dismiss">
                           <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"></path>
                           </svg>
@@ -778,7 +745,7 @@ export default function App() {
                 </button>
               </div>
               <button className="btn btn-secondary" onClick={clearAllQueue} style={{ width: '100%', borderColor: 'rgba(231, 76, 60, 0.25)', color: '#e74c3c' }}>
-                Clear All Queue
+                Clear All
               </button>
             </div>
           )}

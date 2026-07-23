@@ -1,7 +1,5 @@
 import { spawn } from 'child_process';
 
-console.log('Starting Express backend and Vite frontend concurrently...');
-
 const server = spawn('node', ['server.js'], { stdio: 'inherit', shell: true });
 const client = spawn('npx', ['vite'], { stdio: 'inherit', shell: true });
 

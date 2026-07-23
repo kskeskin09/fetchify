@@ -1,7 +1,7 @@
 {
-  "name": "youtube-mp3-downloader-ui",
-  "private": true,
-  "version": "0.0.0",
+  "name": "fetchify",
+  "version": "1.0.0",
+  "description": "Search and download YouTube videos as MP3 or MP4",
   "type": "module",
   "scripts": {
     "dev": "node dev.js",

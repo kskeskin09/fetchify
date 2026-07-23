@@ -1,133 +1,101 @@
-# 🎵 BeatStream — YouTube MP3 & MP4 Downloader
+# Fetchify
 
-A modern, full-stack desktop web app for downloading YouTube videos as **MP3** or **MP4** with a beautiful, responsive UI built with **React + Vite** and an **Express** backend.
-
-![BeatStream Screenshot](https://images.unsplash.com/photo-1614680376593-902f74fa0d41?w=800&auto=format&fit=crop&q=60)
+A local-first web app for downloading YouTube videos as **MP3** or **MP4**. Built with React + Vite on the frontend and Express on the backend.
 
 ---
 
-## ✨ Features
+## Features
 
-- 🔍 **YouTube Search** — Search directly from the app, no URL needed
-- 🎵 **MP3 Download** — Extract audio at up to 320 Kbps
-- 🎬 **MP4 Download** — Download video at various quality levels (144p–best)
-- 📊 **Real-time Progress** — Live download progress via Server-Sent Events (SSE)
-- 📁 **Custom Download Path** — Choose where your files are saved (local use)
-- 📢 **Announcement Banner** — Edit `info.txt` to show a banner message in the app
-- 🌗 **Dark, premium UI** — Glassmorphism design with smooth animations
+- Search YouTube directly from the app — no URL copying needed
+- Download as MP3 (up to 320 Kbps) or MP4 (up to 1080p+)
+- Real-time download progress via Server-Sent Events
+- Batch queue — add multiple tracks and download them all at once
+- Per-track format and quality selection
+- Saves files to a local `Fetchify` subfolder in your Downloads
 
 ---
 
-## 🛠️ Prerequisites
+## Prerequisites
 
-Before running the app, make sure you have the following installed:
+**Node.js v18+** — [nodejs.org](https://nodejs.org)
 
-### 1. Node.js (v18+)
-Download from [nodejs.org](https://nodejs.org)
+**yt-dlp** — must be available in your system PATH.
 
-### 2. yt-dlp
-`yt-dlp` is required for searching and downloading. It must be available in your system PATH.
-
-**Windows:**
-```powershell
+```bash
+# Windows
 winget install yt-dlp
-# or download from https://github.com/yt-dlp/yt-dlp/releases
-```
 
-**macOS:**
-```bash
+# macOS
 brew install yt-dlp
-```
 
-**Linux:**
-```bash
-sudo apt install yt-dlp
-# or
+# Linux
 pip install yt-dlp
 ```
 
-> **Note:** `ffmpeg` is bundled via the `ffmpeg-static` npm package — no separate install needed.
+> `ffmpeg` is bundled via `ffmpeg-static` — no separate install required.
 
 ---
 
-## 🚀 Getting Started
-
-### 1. Clone the repository
+## Getting Started
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/youtube-mp3-downloader-ui.git
-cd youtube-mp3-downloader-ui
-```
-
-### 2. Install dependencies
-
-```bash
+git clone https://github.com/YOUR_USERNAME/fetchify.git
+cd fetchify
 npm install
-```
-
-### 3. Run in development mode
-
-```bash
 npm run dev
 ```
 
-This starts both the **Vite frontend** (hot-reload) and the **Express backend** concurrently. Open [http://localhost:5173](http://localhost:5173) in your browser.
+Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ---
 
-## 📦 Production Build
+## Production
 
 ```bash
 npm run build
 npm start
 ```
 
-This builds the React app and serves it via the Express server on port `5000`.
+Serves the built frontend through the Express server on port `5000` (or `$PORT`).
 
 ---
 
-## ⚙️ Configuration
+## Announcement Banner
 
-| Option | Default | Description |
-|---|---|---|
-| `PORT` | `5000` | Express server port (env var) |
-| Download path | `~/Downloads/BeatStream` | Can be set per-download in the UI |
-| `info.txt` | *(empty)* | Edit this file to display an announcement banner in the app |
+Create an `info.txt` file in the project root with any text to display a banner inside the app. Leave it empty or delete it to hide the banner. See `info.txt.example` for reference.
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
-├── src/               # React frontend (Vite)
-│   ├── App.jsx        # Main application component
-│   ├── App.css        # Component styles
-│   └── index.css      # Global styles & design system
-├── server.js          # Express backend (search + download API)
-├── dev.js             # Development concurrency script
-├── vite.config.js     # Vite configuration
-├── info.txt           # Editable announcement banner text
+├── src/           # React frontend
+│   ├── App.jsx
+│   ├── App.css
+│   └── index.css
+├── server.js      # Express API server
+├── dev.js         # Development runner (Vite + Express)
+├── vite.config.js
 └── package.json
 ```
 
 ---
 
-## ⚠️ Legal Disclaimer
+## Tech Stack
 
-This tool is intended for **personal use only**. Downloading copyrighted content without permission may violate YouTube's Terms of Service and applicable laws. Use responsibly.
-
----
-
-## 🧰 Tech Stack
-
-- **Frontend:** React 19, Vite 8, Vanilla CSS (glassmorphism)
+- **Frontend:** React 19, Vite 8, Vanilla CSS
 - **Backend:** Node.js, Express
 - **Downloader:** yt-dlp
-- **Audio/Video processing:** ffmpeg (via ffmpeg-static)
-- **Dev tooling:** Oxlint
+- **Audio/Video:** ffmpeg (via ffmpeg-static)
 
 ---
 
-## 📄 License
+## Disclaimer
 
-MIT — feel free to use, modify, and distribute.
+For personal use only. Downloading copyrighted content may violate YouTube's Terms of Service. Use responsibly.
+
+---
+
+## License
+
+MIT
